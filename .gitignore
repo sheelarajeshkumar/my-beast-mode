@@ -3,3 +3,4 @@
 graphify-out/
 __pycache__/
 *.pyc
+.my-beast-mode/

@@ -4,7 +4,12 @@
 
 Catalog: [my-beast-mode on skills.sh](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode)
 
-`my-beast-mode` is a portable Agent Skill for small, evidence-backed code changes and reviews. It combines:
+This repository contains two portable Agent Skills:
+
+- `my-beast-mode` for small, evidence-backed code changes and reviews
+- `my-beast-mode-view` for a private local RTK token-optimization dashboard
+
+Together they provide:
 
 - Caveman-style concise communication
 - Ponytail-style minimal implementation and YAGNI discipline
@@ -12,6 +17,7 @@ Catalog: [my-beast-mode on skills.sh](https://skills.sh/sheelarajeshkumar/my-bea
 - code-review-graph structural impact analysis
 - Graphify semantic and cross-document analysis
 - optional local, remote, or host-agent orchestration
+- per-project RTK savings, trends, and optimization-category analytics
 
 The default orchestrator is local Ollama with the small `gemma4:e2b` model. Orchestration is advisory and optional: the host coding agent keeps all tool access, permissions, edits, and verification.
 
@@ -44,6 +50,12 @@ Root-cause fixes belong at the narrowest shared point, not in every caller. Non-
 
 When Rust Token Killer is available, the agent prefixes shell commands with `rtk` so logs, diffs, tests, package-manager output, and VCS output consume less context. Commands keep their original intent and permission boundaries. Exact evidence can bypass filtering with `rtk proxy` or the native command.
 
+### Dashboard
+
+`/my-beast-mode-view` generates a self-contained local web page from RTK's history database. It shows raw versus optimized token estimates, saved tokens, savings percentage, command count, daily trend, and the command categories responsible for savings for each project. Filters cover 7, 30, 90, or all available days.
+
+The dashboard uses Python and browser-native HTML, CSS, JavaScript, and SVG. It has no server, framework, package install, telemetry, or remote API. The database is opened read-only and raw command arguments are never included in the generated page.
+
 ### code-review-graph
 
 For code structure, the agent prefers an existing graph to broad file reads. It uses minimal context, blast radius, call relationships, execution flows, and relevant tests, then confirms findings in source. Generated graph data is an index, never the final authority.
@@ -69,14 +81,18 @@ my-beast-mode-skill/
 ├── LICENSE
 ├── README.md
 └── skills/
-    └── my-beast-mode/
+    ├── my-beast-mode/
+    │   ├── SKILL.md
+    │   ├── references/
+    │   │   ├── orchestration.md
+    │   │   ├── review-workflow.md
+    │   │   └── rtk.md
+    │   └── scripts/
+    │       └── orchestrator.py
+    └── my-beast-mode-view/
         ├── SKILL.md
-        ├── references/
-        │   ├── orchestration.md
-        │   ├── review-workflow.md
-        │   └── rtk.md
         └── scripts/
-            └── orchestrator.py
+            └── dashboard.py
 ```
 
 ## Requirements
@@ -85,6 +101,12 @@ Core skill:
 
 - an Agent Skills-compatible client
 - no runtime dependency
+
+Dashboard skill:
+
+- Python 3.10 or newer
+- RTK history tracking with at least one recorded command
+- a modern web browser
 
 Optional orchestration helper:
 
@@ -106,6 +128,18 @@ Install the published GitHub skill:
 
 ```bash
 npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
+```
+
+Install both skills:
+
+```bash
+npx skills add sheelarajeshkumar/my-beast-mode --all
+```
+
+Or select both explicitly:
+
+```bash
+npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode my-beast-mode-view
 ```
 
 Install globally:
@@ -151,6 +185,7 @@ Example:
 ```bash
 mkdir -p .agents/skills
 cp -R skills/my-beast-mode .agents/skills/
+cp -R skills/my-beast-mode-view .agents/skills/
 ```
 
 Restart or reload the agent if it does not discover newly installed skills automatically.
@@ -334,6 +369,57 @@ Use $my-beast-mode to map relationships across the ADRs and implementation. Use 
 Use $my-beast-mode with remote orchestration. Send only the diff summary, not source files.
 ```
 
+## View the token dashboard
+
+In clients that expose skills as slash commands, run:
+
+```text
+/my-beast-mode-view
+```
+
+Portable explicit invocation for other Agent Skills clients:
+
+```text
+Use $my-beast-mode-view to generate and open my RTK savings dashboard.
+```
+
+The skill runs the installed generator and opens:
+
+```text
+<current-project>/.my-beast-mode/dashboard.html
+```
+
+You can run it directly from this repository:
+
+```bash
+python skills/my-beast-mode-view/scripts/dashboard.py --open
+```
+
+Choose another output file or RTK database:
+
+```bash
+python skills/my-beast-mode-view/scripts/dashboard.py \
+  --db /path/to/history.db \
+  --output /path/to/dashboard.html \
+  --open
+```
+
+Database discovery order is `--db`, `RTK_DB_PATH`, the standard macOS RTK location, the standard Linux location, then Windows local application-data locations. If discovery fails, check the active location with `rtk config`.
+
+### What the dashboard shows
+
+| View | Meaning |
+| --- | --- |
+| Tokens saved | Estimated raw output tokens minus optimized output tokens |
+| Compression | Saved tokens divided by raw tokens |
+| Commands optimized | RTK-tracked commands in the selected period |
+| Active projects | Distinct project paths in the selected period |
+| Daily trend | Saved-token estimates by date |
+| Project table | Raw, optimized, saved, savings rate, command count, and top categories |
+| How RTK optimized | Savings grouped by safe command family, such as `git`, `pytest`, or `docker` |
+
+Click a project row to change the “How” chart from all projects to that project. RTK estimates token counts from text size; these values describe output compression and are not an API invoice or exact model-token count.
+
 ### Expected review output
 
 ```text
@@ -376,6 +462,9 @@ Requested reports, walkthroughs, and safety explanations are not shortened merel
 - Graph claims are verified against source before edits or findings.
 - Generated graph caches should not be committed.
 - Project-local RTK filters must be inspected before they are trusted.
+- The dashboard opens RTK history read-only and does not alter tracking data.
+- Generated dashboards contain project labels and aggregate metrics, so `.my-beast-mode/` is ignored by Git.
+- Raw commands and their arguments are excluded from dashboard output.
 - Review any third-party skill or CLI before installation.
 
 ## Cross-agent compatibility
@@ -399,25 +488,27 @@ Run the bundled offline check:
 
 ```bash
 python skills/my-beast-mode/scripts/orchestrator.py self-test
+python skills/my-beast-mode-view/scripts/dashboard.py --self-test
 ```
 
 Validate the Agent Skills schema with `skills-ref` when installed:
 
 ```bash
 skills-ref validate skills/my-beast-mode
+skills-ref validate skills/my-beast-mode-view
 ```
 
 You can also test discovery without installing globally:
 
 ```bash
-npx skills add . --skill my-beast-mode
+npx skills add . --all
 ```
 
 ## Publish and update on skills.sh
 
 Public source: [github.com/sheelarajeshkumar/my-beast-mode](https://github.com/sheelarajeshkumar/my-beast-mode)
 
-skills.sh reads valid skills from public GitHub repositories. This repository is ready because `skills/my-beast-mode/SKILL.md` contains the required `name` and `description` frontmatter.
+skills.sh reads valid skills from public GitHub repositories. Both skill directories contain the required `SKILL.md`, `name`, and `description` fields.
 
 To publish or refresh its catalog entry:
 
@@ -425,10 +516,10 @@ To publish or refresh its catalog entry:
 2. Install from the GitHub source with the skills CLI:
 
    ```bash
-   npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
+   npx skills add sheelarajeshkumar/my-beast-mode --all
    ```
 
-3. Verify the [my-beast-mode catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode) and its generated security audit.
+3. Verify the [my-beast-mode catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode), the [my-beast-mode-view catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode-view), and their generated security audits.
 4. After future pushes, users can retrieve the current skill with:
 
    ```bash
@@ -452,6 +543,10 @@ Full catalog description:
 Suggested repository description:
 
 > Portable Agent Skill combining concise reviews, minimal fixes, token-efficient commands, structural and semantic graphs, and optional local-first orchestration.
+
+Dashboard catalog description:
+
+> Private local web dashboard for RTK token optimization, with per-project savings, time filters, daily trends, and safe command-category breakdowns.
 
 Suggested topics:
 
@@ -478,6 +573,21 @@ rtk proxy <command>
 ```
 
 Never auto-trust repository-local RTK filters; inspect them first.
+
+### Dashboard cannot find RTK history
+
+Check RTK tracking and its configured database path:
+
+```bash
+rtk config
+rtk gain --all
+```
+
+Then pass the reported database through `--db` or `RTK_DB_PATH`. The dashboard does not create tracking data; it visualizes commands already recorded by RTK.
+
+### Dashboard opens with no recent projects
+
+Select **All** in the time filter. If it remains empty, run normal shell work through RTK first, then regenerate the page. The HTML is a snapshot, so rerun `/my-beast-mode-view` to refresh it.
 
 ### Ollama cannot be reached
 
