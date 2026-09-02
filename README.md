@@ -8,10 +8,11 @@ Catalog: [my-beast-mode on skills.sh](https://skills.sh/sheelarajeshkumar/my-bea
 
 _30-day dashboard preview. Project paths and detailed memory summaries are intentionally excluded from the public screenshot._
 
-This repository contains two portable Agent Skills:
+This repository contains three portable Agent Skills:
 
 - `my-beast-mode` for small, evidence-backed code changes and reviews
-- `my-beast-mode-view` for a private local RTK token-optimization dashboard
+- `my-beast-mode-view` for a private local RTK token-optimization and memory dashboard
+- `my-beast-mode-recall` for focused searches across prior Beast Mode sessions
 
 Together they provide:
 
@@ -22,7 +23,10 @@ Together they provide:
 - Graphify semantic and cross-document analysis
 - optional local, remote, or host-agent orchestration
 - per-project RTK savings, trends, and optimization-category analytics
-- local cross-project usage memory with outcomes, duration, files, and checks
+- session-level savings attribution, missed-savings coverage, and regression signals
+- local cross-project usage memory, agent comparison, and filtered recall
+- privacy-safe project aliases plus sanitized PNG and JSON sharing
+- data-health visibility for RTK history, memory parsing, and discovery freshness
 
 The default orchestrator is local Ollama with the small `gemma4:e2b` model. Orchestration is advisory and optional: the host coding agent keeps all tool access, permissions, edits, and verification.
 
@@ -57,21 +61,24 @@ When Rust Token Killer is available, the agent prefixes shell commands with `rtk
 
 ### Dashboard
 
-`/my-beast-mode-view` generates a self-contained local web page from RTK's history database and My Beast Mode memory. It shows raw versus optimized token estimates, saved tokens, savings percentage, averages, active days, daily trend, detailed project metrics, and the command categories responsible for savings. Filters cover 7, 30, 90, or all available days.
+`/my-beast-mode-view` generates a self-contained local web page from RTK's history database and My Beast Mode memory. It shows raw versus optimized token estimates, session attribution, saved tokens, savings percentage, averages, active days, daily trend, detailed project metrics, command categories, missed-savings coverage, period-over-period signals, agent comparison, and data health. Filters cover 7, 30, 90, or all available days.
 
-The dashboard uses Python and browser-native HTML, CSS, JavaScript, and SVG. It has no server, framework, package install, telemetry, or remote API. The RTK database is opened read-only, and raw command arguments, prompts, and source code are never included in the generated page.
+The dashboard uses Python and browser-native HTML, CSS, JavaScript, canvas, and SVG. It has no server, framework, package install, telemetry, or remote API. The RTK database is opened read-only. Raw command arguments, prompts, source code, and `rtk discover` unsupported-command examples are never included in the generated page.
 
 ### Local memory
 
 Every `my-beast-mode` use records a small start and finish event in `~/.my-beast-mode/memory.jsonl`. Like Claude-memory's local-first model, the data stays on the machine and becomes useful across later sessions and projects. Unlike a transcript recorder, this store contains only sanitized summaries and metric counts:
 
 - task type and selected orchestrator
+- host agent name
 - start, finish, and duration
 - success, partial, failed, or incomplete outcome
 - numbers of files changed and checks passed or failed
 - a short high-level result summary
 
 The memory deliberately excludes prompts, source code, raw commands, tool output, credentials, and personal data. Set `MY_BEAST_MODE_MEMORY` to move the store.
+
+`/my-beast-mode-recall` searches this compact store before loading results. It supports query text plus project, task type, outcome, agent, date-range, and result-count filters, so an agent can reuse prior outcomes without replaying whole transcripts.
 
 ### code-review-graph
 
@@ -107,10 +114,14 @@ my-beast-mode-skill/
     │   └── scripts/
     │       ├── memory.py
     │       └── orchestrator.py
-    └── my-beast-mode-view/
+    ├── my-beast-mode-view/
+    │   ├── SKILL.md
+    │   └── scripts/
+    │       └── dashboard.py
+    └── my-beast-mode-recall/
         ├── SKILL.md
         └── scripts/
-            └── dashboard.py
+            └── recall.py
 ```
 
 ## Requirements
@@ -125,6 +136,11 @@ Dashboard skill:
 - Python 3.10 or newer
 - RTK history tracking with at least one recorded command
 - a modern web browser
+
+Recall skill:
+
+- Python 3.10 or newer
+- the sibling `my-beast-mode` skill, which owns the memory format and search helper
 
 Optional orchestration helper:
 
@@ -148,16 +164,16 @@ Install the published GitHub skill:
 npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
 ```
 
-Install both skills:
+Install all three skills:
 
 ```bash
 npx skills add sheelarajeshkumar/my-beast-mode --all
 ```
 
-Or select both explicitly:
+Or select them explicitly:
 
 ```bash
-npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode my-beast-mode-view
+npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode my-beast-mode-view my-beast-mode-recall
 ```
 
 Install globally:
@@ -204,6 +220,7 @@ Example:
 mkdir -p .agents/skills
 cp -R skills/my-beast-mode .agents/skills/
 cp -R skills/my-beast-mode-view .agents/skills/
+cp -R skills/my-beast-mode-recall .agents/skills/
 ```
 
 Restart or reload the agent if it does not discover newly installed skills automatically.
@@ -422,6 +439,27 @@ python skills/my-beast-mode-view/scripts/dashboard.py \
   --open
 ```
 
+Create a privacy-safe dashboard and aggregate JSON export:
+
+```bash
+python skills/my-beast-mode-view/scripts/dashboard.py \
+  --privacy \
+  --aliases aliases.json \
+  --export-json summary.json \
+  --open
+```
+
+Aliases replace exact project paths before data reaches the HTML. The alias file is a JSON object:
+
+```json
+{
+  "/Users/me/work/payments": "Payments API",
+  "/Users/me/work/storefront": "Storefront"
+}
+```
+
+Without an alias, `--privacy` assigns stable labels such as `Project 01` for that generated snapshot. The dashboard's **Share PNG** and **Share JSON** buttons export aggregate metrics with anonymized project labels; they omit paths, prompts, commands, and memory summaries.
+
 Database discovery order is `--db`, `RTK_DB_PATH`, the standard macOS RTK location, the standard Linux location, then Windows local application-data locations. If discovery fails, check the active location with `rtk config`.
 
 ### What the dashboard shows
@@ -436,11 +474,16 @@ Database discovery order is `--db`, `RTK_DB_PATH`, the standard macOS RTK locati
 | Active projects | Distinct project paths in the selected period |
 | Active days | Dates containing RTK activity |
 | Daily trend | Saved-token estimates by date |
-| Project detail | Raw, optimized, saved, rate, average, commands, days, Beast runs, last activity, and top categories |
+| Project detail | Raw, optimized, saved, rate, average, execution time, commands, days, Beast runs, last activity, and top categories |
 | How RTK optimized | Savings grouped by safe command family, such as `git`, `pytest`, or `docker` |
-| Beast Mode memory | Run count, completion rate, average duration, passed checks, and recent sanitized activity |
+| Session attribution | RTK commands and savings correlated to each Beast Mode session by project and timestamp |
+| Signals | Current-period changes versus the preceding equal period, plus incomplete or failed-session warnings |
+| Missed-savings coverage | Supported `rtk discover` opportunities, estimated potential savings, and adoption coverage |
+| Agent comparison | Runs, completion, checks, duration, and attributed savings grouped by host agent |
+| Beast Mode memory | Run count, completion rate, duration, checks, and recent sanitized activity |
+| Data health | RTK version, record window, retention context, memory parse failures, and discovery availability |
 
-Click a project row to change the “How” chart from all projects to that project. RTK estimates token counts from text size; these values describe output compression and are not an API invoice or exact model-token count.
+Click a project row to change the “How” chart from all projects to that project. Session attribution is a local correlation by project and start/end time, not distributed tracing. Missed-savings coverage is a generation-time `rtk discover` snapshot; disable it with `--no-discover` when command-history analysis is not wanted. RTK estimates token counts from text size, so these values describe output compression and are not an API invoice or exact model-token count.
 
 ### Memory lifecycle
 
@@ -450,7 +493,8 @@ Manual recording is available for debugging or integrations:
 
 ```bash
 SESSION_ID=$(python skills/my-beast-mode/scripts/memory.py start \
-  --task-type review --orchestrator host --summary "Review authentication change")
+  --task-type review --agent codex --orchestrator host \
+  --summary "Review authentication change")
 
 python skills/my-beast-mode/scripts/memory.py finish \
   --session "$SESSION_ID" --outcome success \
@@ -459,6 +503,32 @@ python skills/my-beast-mode/scripts/memory.py finish \
 ```
 
 The memory format is append-only JSON Lines so a partially written or malformed line can be skipped without losing earlier events. Dashboard generation never modifies this file.
+
+## Recall prior work
+
+In clients that expose skills as slash commands, run:
+
+```text
+/my-beast-mode-recall authentication
+```
+
+Portable explicit invocation:
+
+```text
+Use $my-beast-mode-recall to find successful authentication work from the last month.
+```
+
+Direct CLI examples:
+
+```bash
+python skills/my-beast-mode/scripts/memory.py recall authentication \
+  --project payments --outcome success --agent codex --limit 10
+
+python skills/my-beast-mode/scripts/memory.py recall \
+  --date-start 2026-08-01 --date-end 2026-08-31 --format json
+```
+
+Recall filters records before rendering them and defaults to a small result set. It returns sanitized session summaries and metrics, never transcripts or raw command history.
 
 ### Expected review output
 
@@ -506,6 +576,8 @@ Requested reports, walkthroughs, and safety explanations are not shortened merel
 - Beast Mode memory is append-only and local at `~/.my-beast-mode/memory.jsonl` by default.
 - Generated dashboards contain project labels and aggregate metrics, so `.my-beast-mode/` is ignored by Git.
 - Prompts, source code, raw commands, command arguments, and tool output are excluded from memory and dashboard output.
+- `rtk discover` unsupported-command examples are discarded before dashboard generation because they can contain complete shell text.
+- Shared PNG and JSON exports contain aggregate metrics and anonymized project labels only.
 - Review any third-party skill or CLI before installation.
 
 ## Cross-agent compatibility
@@ -531,6 +603,7 @@ Run the bundled offline check:
 python skills/my-beast-mode/scripts/orchestrator.py self-test
 python skills/my-beast-mode/scripts/memory.py self-test
 python skills/my-beast-mode-view/scripts/dashboard.py --self-test
+python skills/my-beast-mode-recall/scripts/recall.py dashboard --limit 1
 ```
 
 Validate the Agent Skills schema with `skills-ref` when installed:
@@ -538,6 +611,7 @@ Validate the Agent Skills schema with `skills-ref` when installed:
 ```bash
 skills-ref validate skills/my-beast-mode
 skills-ref validate skills/my-beast-mode-view
+skills-ref validate skills/my-beast-mode-recall
 ```
 
 You can also test discovery without installing globally:
@@ -550,7 +624,7 @@ npx skills add . --all
 
 Public source: [github.com/sheelarajeshkumar/my-beast-mode](https://github.com/sheelarajeshkumar/my-beast-mode)
 
-skills.sh reads valid skills from public GitHub repositories. Both skill directories contain the required `SKILL.md`, `name`, and `description` fields.
+skills.sh reads valid skills from public GitHub repositories. All three skill directories contain the required `SKILL.md`, `name`, and `description` fields.
 
 To publish or refresh its catalog entry:
 
@@ -561,7 +635,7 @@ To publish or refresh its catalog entry:
    npx skills add sheelarajeshkumar/my-beast-mode --all
    ```
 
-3. Verify the [my-beast-mode catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode), the [my-beast-mode-view catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode-view), and their generated security audits.
+3. Verify the [my-beast-mode catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode), the [my-beast-mode-view catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode-view), the [my-beast-mode-recall catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode-recall), and their generated security audits.
 4. After future pushes, users can retrieve the current skill with:
 
    ```bash
@@ -576,24 +650,28 @@ For an unlisted multi-skill bundle, create a [skills.sh pack](https://skills.sh/
 
 Short catalog description:
 
-> Minimal, graph-aware code review with local usage memory, RTK-optimized shell output, and optional local or remote orchestration.
+> Minimal, graph-aware code review with searchable local memory, RTK-optimized shell output, and optional local or remote orchestration.
 
 Full catalog description:
 
-> Review, debug, and change code with Caveman brevity, Ponytail minimalism, RTK-optimized shell execution, code-review-graph blast-radius analysis, Graphify semantic mapping, and private cross-project usage memory. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent.
+> Review, debug, and change code with Caveman brevity, Ponytail minimalism, RTK-optimized shell execution, code-review-graph blast-radius analysis, Graphify semantic mapping, searchable private usage memory, and a detailed optimization dashboard. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent.
 
 Suggested repository description:
 
-> Portable Agent Skill combining concise reviews, minimal fixes, token-efficient commands, structural and semantic graphs, and optional local-first orchestration.
+> Portable Agent Skills combining concise reviews, minimal fixes, token-efficient commands, structural and semantic graphs, searchable local memory, and optional local-first orchestration.
 
 Dashboard catalog description:
 
-> Private local web dashboard for detailed RTK token optimization and My Beast Mode memory, with project metrics, trends, safe command categories, outcomes, duration, and verification counts.
+> Private local web dashboard for RTK optimization and My Beast Mode memory, with session attribution, trends, missed-savings coverage, agent comparison, privacy-safe exports, and data health.
+
+Recall catalog description:
+
+> Search sanitized My Beast Mode session memory by text, project, task type, outcome, agent, and date without loading full transcripts.
 
 Suggested topics:
 
 ```text
-agent-skills code-review knowledge-graph rtk token-optimization ollama gemma4 skills-sh codex claude-code cursor copilot
+agent-skills code-review knowledge-graph rtk token-optimization local-memory recall dashboard ollama gemma4 skills-sh codex claude-code cursor copilot
 ```
 
 ## Troubleshooting
@@ -631,6 +709,14 @@ Then pass the reported database through `--db` or `RTK_DB_PATH`. The dashboard d
 
 Select **All** in the time filter. If it remains empty, run normal shell work through RTK first, then regenerate the page. The HTML is a snapshot, so rerun `/my-beast-mode-view` to refresh it.
 
+### Missed-savings coverage is unavailable
+
+The rest of the dashboard still works. Confirm `rtk discover --all --format json` succeeds, then regenerate the snapshot. Use `--no-discover` to intentionally omit this panel's live analysis.
+
+### Privacy mode still shows a recognizable project name
+
+Aliases are intentionally human-readable. Remove the matching entry from `aliases.json` to receive a generated `Project NN` label, or omit `--aliases` entirely. Privacy mode never embeds the original path.
+
 ### Beast Mode memory is empty
 
 Memory starts accumulating after the updated `my-beast-mode` skill is used. Confirm the file or custom location:
@@ -639,7 +725,11 @@ Memory starts accumulating after the updated `my-beast-mode` skill is used. Conf
 ls -l "${MY_BEAST_MODE_MEMORY:-$HOME/.my-beast-mode/memory.jsonl}"
 ```
 
-If an agent cannot write there, set `MY_BEAST_MODE_MEMORY` to a writable private path. Reinstall or update both skills so the recorder and dashboard use the same schema.
+If an agent cannot write there, set `MY_BEAST_MODE_MEMORY` to a writable private path. Reinstall or update all three skills so the recorder, dashboard, and recall command use the same schema.
+
+### Recall skill cannot find the memory helper
+
+Install all three skills together. `my-beast-mode-recall` deliberately reuses `my-beast-mode/scripts/memory.py` instead of maintaining a second memory implementation.
 
 ### Ollama cannot be reached
 
