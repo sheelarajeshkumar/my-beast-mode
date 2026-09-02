@@ -1,5 +1,7 @@
 # My Beast Mode
 
+[![skills.sh](https://skills.sh/b/sheelarajeshkumar/my-beast-mode)](https://skills.sh/sheelarajeshkumar/my-beast-mode)
+
 `my-beast-mode` is a portable Agent Skill for small, evidence-backed code changes and reviews. It combines:
 
 - Caveman-style concise communication
@@ -98,22 +100,22 @@ Optional command-output integration:
 
 ## Install with skills.sh
 
-After publishing this folder to a public GitHub repository:
+Install the published GitHub skill:
 
 ```bash
-npx skills add OWNER/REPOSITORY --skill my-beast-mode
+npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
 ```
 
 Install globally:
 
 ```bash
-npx skills add OWNER/REPOSITORY --skill my-beast-mode -g -y
+npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode -g -y
 ```
 
 Install for selected agents:
 
 ```bash
-npx skills add OWNER/REPOSITORY --skill my-beast-mode --agent codex claude-code cursor
+npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode --agent codex claude-code cursor
 ```
 
 Run `npx skills add --help` for the agent identifiers supported by the installed CLI version. The CLI can auto-detect installed agents when `--agent` is omitted.
@@ -409,28 +411,31 @@ You can also test discovery without installing globally:
 npx skills add . --skill my-beast-mode
 ```
 
-## Publish to skills.sh
+## Publish and update on skills.sh
 
-skills.sh discovers valid skills from public GitHub repositories. To publish:
+Public source: [github.com/sheelarajeshkumar/my-beast-mode](https://github.com/sheelarajeshkumar/my-beast-mode)
 
-1. Create a public GitHub repository.
-2. Copy this repository contents into it.
-3. Commit and push the `skills/my-beast-mode/SKILL.md` tree.
-4. Confirm the repository is reachable without authentication.
-5. Test installation:
+skills.sh reads valid skills from public GitHub repositories. This repository is ready because `skills/my-beast-mode/SKILL.md` contains the required `name` and `description` frontmatter.
+
+To publish or refresh its catalog entry:
+
+1. Push the current `main` branch to the public GitHub repository.
+2. Install from the GitHub source with the skills CLI:
 
    ```bash
-   npx skills add OWNER/REPOSITORY --skill my-beast-mode
+   npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
    ```
 
-6. Open the resulting skills.sh page after the first indexed installation and review its security audit.
-7. Add an optional install-count badge to this README:
+3. Verify the [skills.sh source page](https://skills.sh/sheelarajeshkumar/my-beast-mode) and its generated security audit.
+4. After future pushes, users can retrieve the current skill with:
 
-   ```markdown
-   [![skills.sh](https://skills.sh/b/OWNER/REPOSITORY)](https://skills.sh/OWNER/REPOSITORY)
+   ```bash
+   npx skills update my-beast-mode
    ```
 
-For an unlisted multi-skill bundle, create a skills.sh pack and add this GitHub skill. Packs use an install URL such as `https://skills.sh/p/PACK_ID`.
+The install-count badge at the top of this README follows the official skills.sh badge format. Anonymous CLI telemetry affects leaderboard ranking; set `DISABLE_TELEMETRY=1` when installation telemetry is not wanted.
+
+For an unlisted multi-skill bundle, create a [skills.sh pack](https://skills.sh/docs/packs) and add this GitHub skill. Packs provide their own installation URL.
 
 ## Skill descriptions
 
