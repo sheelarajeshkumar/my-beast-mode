@@ -1,17 +1,18 @@
 ---
 name: my-beast-mode
-description: Review, debug, and change code with minimal implementation, terse findings, structural blast-radius analysis, and optional semantic graphing. Use for code review, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, code-review-graph, Graphify, or local/remote review orchestration.
+description: Review, debug, and change code with minimal implementation, terse findings, RTK-optimized shell output, structural blast-radius analysis, and optional semantic graphing. Use for code review, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, RTK, code-review-graph, Graphify, or local/remote review orchestration.
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # My Beast Mode
 
-Combine four behaviors without requiring any one integration:
+Combine five behaviors without requiring any one integration:
 
 - **Caveman:** concise, technically complete communication. Default `full`; use normal prose when terse fragments could make security, destructive actions, or ordered steps unclear.
 - **Ponytail:** understand the real flow, then choose the smallest correct change. Reuse repository code, standard libraries, native platform features, and installed dependencies before adding code or packages.
+- **RTK:** when the Rust Token Killer CLI is available, prefix shell commands with `rtk` to reduce noisy output without changing command intent.
 - **code-review-graph:** use structural graph context to find callers, dependencies, blast radius, and relevant tests.
 - **Graphify:** use semantic graphing for cross-document or cross-domain relationships that structural code analysis cannot reveal.
 
@@ -43,24 +44,26 @@ Read [references/orchestration.md](references/orchestration.md) only when config
 
 1. Establish the exact target: working-tree diff, commit range, PR diff, failing behavior, or requested architecture area.
 2. Inspect repository instructions and existing patterns before proposing changes.
-3. Prefer structural graph context when `code-review-graph` is available:
+3. If `rtk` is available, prefix shell commands with `rtk`. Do not double-prefix commands already using it. Use native commands when RTK is absent, and use `rtk proxy` or raw output when filtering could hide evidence.
+4. Prefer structural graph context when `code-review-graph` is available:
    - Check status first.
    - Build only when missing; update incrementally when stale.
    - Request minimal task context, changed-symbol impact, callers, execution flows, and relevant tests.
    - Treat graph data as an index. Confirm every finding in source and diff before reporting or editing.
-4. Use Graphify only for cross-document concepts, rationale, or non-code relationships, or when explicitly requested. Do not run it for an ordinary diff that structural tools and source inspection already cover.
-5. Trace the real flow end to end. For a bug, inspect every caller of the shared function and fix the root cause at the narrowest common point.
-6. Apply the Ponytail ladder:
+5. Use Graphify only for cross-document concepts, rationale, or non-code relationships, or when explicitly requested. Do not run it for an ordinary diff that structural tools and source inspection already cover.
+6. Trace the real flow end to end. For a bug, inspect every caller of the shared function and fix the root cause at the narrowest common point.
+7. Apply the Ponytail ladder:
    1. Skip speculative work.
    2. Reuse code already present in the repository.
    3. Prefer the standard library.
    4. Prefer native platform features.
    5. Prefer an already-installed dependency.
    6. Make the smallest working change.
-7. Never simplify away trust-boundary validation, data-loss prevention, security controls, accessibility basics, or explicit requirements.
-8. Leave one smallest runnable check for non-trivial logic. Run focused verification first; distinguish it from broader validation.
+8. Never simplify away trust-boundary validation, data-loss prevention, security controls, accessibility basics, or explicit requirements.
+9. Leave one smallest runnable check for non-trivial logic. Run focused verification first; distinguish it from broader validation.
 
 Read [references/review-workflow.md](references/review-workflow.md) when performing review, debugging, refactoring, or graph selection.
+Read [references/rtk.md](references/rtk.md) when installing, verifying, bypassing, or troubleshooting RTK.
 
 ## Optional orchestration
 

@@ -4,6 +4,7 @@
 
 - Caveman-style concise communication
 - Ponytail-style minimal implementation and YAGNI discipline
+- RTK token-optimized shell execution
 - code-review-graph structural impact analysis
 - Graphify semantic and cross-document analysis
 - optional local, remote, or host-agent orchestration
@@ -14,7 +15,7 @@ The default orchestrator is local Ollama with the small `gemma4:e2b` model. Orch
 
 This repository uses the shared Agent Skills format: one `SKILL.md` with standard YAML frontmatter plus optional `scripts/` and `references/`. It avoids agent-specific tool names, hooks, and frontmatter, so the same package can be installed by skills.sh into any supported Agent Skills client.
 
-code-review-graph and Graphify remain optional external integrations. The skill still works with normal repository search, source inspection, diffs, and tests when either CLI is absent.
+RTK, code-review-graph, and Graphify remain optional external integrations. The skill still works with native shell commands, repository search, source inspection, diffs, and tests when any CLI is absent.
 
 ## Behavior
 
@@ -34,6 +35,10 @@ The agent reads the affected flow before editing, searches for an existing solut
 6. Write the minimum new code.
 
 Root-cause fixes belong at the narrowest shared point, not in every caller. Non-trivial changes leave one focused runnable check.
+
+### RTK
+
+When Rust Token Killer is available, the agent prefixes shell commands with `rtk` so logs, diffs, tests, package-manager output, and VCS output consume less context. Commands keep their original intent and permission boundaries. Exact evidence can bypass filtering with `rtk proxy` or the native command.
 
 ### code-review-graph
 
@@ -64,7 +69,8 @@ my-beast-mode-skill/
         ├── SKILL.md
         ├── references/
         │   ├── orchestration.md
-        │   └── review-workflow.md
+        │   ├── review-workflow.md
+        │   └── rtk.md
         └── scripts/
             └── orchestrator.py
 ```
@@ -85,6 +91,10 @@ Optional graph integrations:
 
 - code-review-graph for structural code intelligence
 - Graphify for semantic corpus graphs
+
+Optional command-output integration:
+
+- RTK (Rust Token Killer)
 
 ## Install with skills.sh
 
@@ -232,7 +242,30 @@ python scripts/orchestrator.py plan \
 
 The helper limits context files to 100,000 bytes and asks the model for JSON with scope, graph steps, focus areas, checks, and parallelism. If orchestration fails, the host agent continues without it.
 
-## Install optional graph tools
+## Install optional integrations
+
+### RTK
+
+Check first:
+
+```bash
+rtk --version
+rtk gain
+```
+
+Install with Homebrew:
+
+```bash
+brew install rtk-ai/tap/rtk
+```
+
+Or build the correct RTK project with Cargo:
+
+```bash
+cargo install --git https://github.com/rtk-ai/rtk --branch master rtk
+```
+
+Initialize it for the chosen agent or project using the current RTK documentation. The skill does not auto-install RTK or modify global agent configuration.
 
 ### code-review-graph
 
@@ -279,6 +312,10 @@ Other examples:
 
 ```text
 Use $my-beast-mode to diagnose this failure and fix the shared root cause.
+```
+
+```text
+Use $my-beast-mode to review this diff. Use RTK for shell commands and raw output for security findings.
 ```
 
 ```text
@@ -334,11 +371,12 @@ Requested reports, walkthroughs, and safety explanations are not shortened merel
 - The helper does not scan the repository or read `.env` files.
 - Graph claims are verified against source before edits or findings.
 - Generated graph caches should not be committed.
+- Project-local RTK filters must be inspected before they are trusted.
 - Review any third-party skill or CLI before installation.
 
 ## Cross-agent compatibility
 
-The distributable skill uses only portable Agent Skills fields: `name`, `description`, `license`, `compatibility`, and string-valued `metadata`. It does not require:
+The distributable skill uses only portable Agent Skills fields: `name`, `description`, `license`, and string-valued `metadata`. It does not require:
 
 - agent-specific hooks
 - `allowed-tools`
@@ -398,20 +436,20 @@ For an unlisted multi-skill bundle, create a skills.sh pack and add this GitHub 
 
 Short catalog description:
 
-> Minimal, graph-aware code review with terse findings and optional local or remote orchestration.
+> Minimal, graph-aware code review with terse findings, RTK-optimized shell output, and optional local or remote orchestration.
 
 Full catalog description:
 
-> Review, debug, and change code with Caveman brevity, Ponytail minimalism, code-review-graph blast-radius analysis, and Graphify semantic mapping. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent. Core behavior remains portable across Agent Skills clients and works without external graph tools.
+> Review, debug, and change code with Caveman brevity, Ponytail minimalism, RTK-optimized shell execution, code-review-graph blast-radius analysis, and Graphify semantic mapping. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent. Core behavior remains portable across Agent Skills clients and works without external integrations.
 
 Suggested repository description:
 
-> Portable Agent Skill combining concise reviews, minimal fixes, structural and semantic graphs, and optional local-first orchestration.
+> Portable Agent Skill combining concise reviews, minimal fixes, token-efficient commands, structural and semantic graphs, and optional local-first orchestration.
 
 Suggested topics:
 
 ```text
-agent-skills code-review knowledge-graph ollama gemma4 skills-sh codex claude-code cursor copilot
+agent-skills code-review knowledge-graph rtk token-optimization ollama gemma4 skills-sh codex claude-code cursor copilot
 ```
 
 ## Troubleshooting
@@ -423,6 +461,16 @@ agent-skills code-review knowledge-graph ollama gemma4 skills-sh codex claude-co
 - Validate YAML frontmatter.
 - Reinstall or reload the agent.
 - Use the skills CLI with an explicit `--skill my-beast-mode` selector.
+
+### RTK is unavailable or output is too compact
+
+Use native commands when `rtk` is not installed. When exact output matters, run:
+
+```bash
+rtk proxy <command>
+```
+
+Never auto-trust repository-local RTK filters; inspect them first.
 
 ### Ollama cannot be reached
 
@@ -471,6 +519,7 @@ MIT. External tools and named projects retain their own licenses and are not bun
 - [skills.sh documentation](https://skills.sh/docs)
 - [code-review-graph](https://github.com/tirth8205/code-review-graph)
 - [Graphify](https://github.com/safishamsi/graphify)
+- [RTK - Rust Token Killer](https://github.com/rtk-ai/rtk)
 - [Ollama Gemma 4 model library](https://ollama.com/library/gemma4)
 
-This repository provides an original composite workflow. It does not vendor code-review-graph, Graphify, Ollama, Gemma 4, or their model weights.
+This repository provides an original composite workflow. It does not vendor RTK, code-review-graph, Graphify, Ollama, Gemma 4, or their model weights.
