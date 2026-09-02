@@ -1,9 +1,9 @@
 ---
 name: my-beast-mode
-description: Review, debug, and change code with minimal implementation, terse findings, RTK-optimized shell output, structural blast-radius analysis, optional semantic graphing, and private local usage memory. Use for code review, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, RTK, code-review-graph, Graphify, or local/remote review orchestration.
+description: Review, debug, map, and change code with minimal implementation, terse findings, RTK-optimized shell output, LSP symbol analysis, structural and semantic graphs, and private local usage memory. Use for code review, detailed code mapping, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, RTK, LSP, code-review-graph, Graphify, or local/remote review orchestration.
 license: MIT
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # My Beast Mode
@@ -13,8 +13,9 @@ Combine five behaviors without requiring any one integration:
 - **Caveman:** concise, technically complete communication. Default `full`; use normal prose when terse fragments could make security, destructive actions, or ordered steps unclear.
 - **Ponytail:** understand the real flow, then choose the smallest correct change. Reuse repository code, standard libraries, native platform features, and installed dependencies before adding code or packages.
 - **RTK:** when the Rust Token Killer CLI is available, prefix shell commands with `rtk` to reduce noisy output without changing command intent.
+- **LSP:** for detailed code mapping, use language-server definitions, references, implementations, call hierarchy, and type information before relying on text matches.
 - **code-review-graph:** use structural graph context to find callers, dependencies, blast radius, and relevant tests.
-- **Graphify:** use semantic graphing for cross-document or cross-domain relationships that structural code analysis cannot reveal.
+- **Graphify:** for detailed code mapping and analysis, build or update the relevant semantic graph and query relationships across code, documentation, and design context.
 
 The host agent always owns tool calls, permissions, edits, and final verification. An optional orchestrator may propose a structured plan; it never receives tool authority.
 
@@ -61,22 +62,27 @@ Memory failures never block the requested task. Store only high-level summaries 
 1. Establish the exact target: working-tree diff, commit range, PR diff, failing behavior, or requested architecture area.
 2. Inspect repository instructions and existing patterns before proposing changes.
 3. If `rtk` is available, prefix shell commands with `rtk`. Do not double-prefix commands already using it. Use native commands when RTK is absent, and use `rtk proxy` or raw output when filtering could hide evidence.
-4. Prefer structural graph context when `code-review-graph` is available:
+4. For detailed code mapping or analysis, LSP and Graphify are required when the host exposes them. Detailed work includes architecture mapping, end-to-end flow tracing, cross-module refactoring, blast-radius analysis, codebase onboarding, and security or data-flow review.
+   - Use LSP for definitions, references, implementations, callers/callees, type hierarchy, diagnostics, and symbol-safe navigation.
+   - Use Graphify on the smallest relevant code and document scope; update an existing graph instead of rebuilding it, then query concepts, paths, and cross-source relationships.
+   - Do not silently skip either capability. If one is unavailable, name the missing capability and use repository search plus direct source inspection as the fallback.
+   - Verify every LSP or Graphify claim against current source before editing or reporting it.
+5. Use structural graph context when `code-review-graph` is available:
    - Check status first.
    - Build only when missing; update incrementally when stale.
    - Request minimal task context, changed-symbol impact, callers, execution flows, and relevant tests.
    - Treat graph data as an index. Confirm every finding in source and diff before reporting or editing.
-5. Use Graphify only for cross-document concepts, rationale, or non-code relationships, or when explicitly requested. Do not run it for an ordinary diff that structural tools and source inspection already cover.
-6. Trace the real flow end to end. For a bug, inspect every caller of the shared function and fix the root cause at the narrowest common point.
-7. Apply the Ponytail ladder:
+6. For ordinary small diffs, use LSP or Graphify only when it materially resolves uncertainty; the strict dual-tool rule applies to detailed mapping and analysis.
+7. Trace the real flow end to end. For a bug, inspect every caller of the shared function and fix the root cause at the narrowest common point.
+8. Apply the Ponytail ladder:
    1. Skip speculative work.
    2. Reuse code already present in the repository.
    3. Prefer the standard library.
    4. Prefer native platform features.
    5. Prefer an already-installed dependency.
    6. Make the smallest working change.
-8. Never simplify away trust-boundary validation, data-loss prevention, security controls, accessibility basics, or explicit requirements.
-9. Leave one smallest runnable check for non-trivial logic. Run focused verification first; distinguish it from broader validation.
+9. Never simplify away trust-boundary validation, data-loss prevention, security controls, accessibility basics, or explicit requirements.
+10. Leave one smallest runnable check for non-trivial logic. Run focused verification first; distinguish it from broader validation.
 
 Read [references/review-workflow.md](references/review-workflow.md) when performing review, debugging, refactoring, or graph selection.
 Read [references/rtk.md](references/rtk.md) when installing, verifying, bypassing, or troubleshooting RTK.

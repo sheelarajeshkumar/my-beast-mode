@@ -19,8 +19,9 @@ Together they provide:
 - Caveman-style concise communication
 - Ponytail-style minimal implementation and YAGNI discipline
 - RTK token-optimized shell execution
+- LSP-backed symbol, reference, implementation, call, and type analysis
 - code-review-graph structural impact analysis
-- Graphify semantic and cross-document analysis
+- enforced Graphify semantic mapping for detailed code analysis
 - optional local, remote, or host-agent orchestration
 - per-project RTK savings, trends, and optimization-category analytics
 - session-level savings attribution, missed-savings coverage, and regression signals
@@ -34,7 +35,7 @@ The default orchestrator is local Ollama with the small `gemma4:e2b` model. Orch
 
 This repository uses the shared Agent Skills format: one `SKILL.md` with standard YAML frontmatter plus optional `scripts/` and `references/`. It avoids agent-specific tool names, hooks, and frontmatter, so the same package can be installed by skills.sh into any supported Agent Skills client.
 
-RTK, code-review-graph, and Graphify remain optional external integrations. The skill still works with native shell commands, repository search, source inspection, diffs, and tests when any CLI is absent.
+Detailed code mapping requires LSP and Graphify whenever the host exposes them. Because tool availability differs across compatible agents, an unavailable integration is reported as a verification gap and the agent falls back to repository search and direct source inspection. RTK and code-review-graph remain optional accelerators.
 
 ## Behavior
 
@@ -80,13 +81,19 @@ The memory deliberately excludes prompts, source code, raw commands, tool output
 
 `/my-beast-mode-recall` searches this compact store before loading results. It supports query text plus project, task type, outcome, agent, date-range, and result-count filters, so an agent can reuse prior outcomes without replaying whole transcripts.
 
+### LSP
+
+For detailed code mapping and analysis, the agent must use available language-server capabilities to resolve workspace symbols, definitions, references, implementations, callers and callees, type hierarchy, and diagnostics. Semantic results are checked against current source; text search remains the fallback for unsupported languages, generated code, configuration, and dynamic wiring.
+
+The strict rule applies to architecture mapping, end-to-end flow tracing, cross-module refactoring, blast-radius analysis, codebase onboarding, and security or data-flow review. Small, self-contained diffs do not need a full mapping pass unless semantic uncertainty remains.
+
 ### code-review-graph
 
 For code structure, the agent prefers an existing graph to broad file reads. It uses minimal context, blast radius, call relationships, execution flows, and relevant tests, then confirms findings in source. Generated graph data is an index, never the final authority.
 
 ### Graphify
 
-For ADRs, research, diagrams, screenshots, product documents, or relationships spanning code and prose, the agent can use Graphify. It preserves extracted, inferred, and ambiguous confidence and verifies source locations before turning graph edges into findings.
+For every detailed mapping or analysis task, the agent must use Graphify when it is available. It builds or updates the smallest useful graph across relevant code, ADRs, research, diagrams, screenshots, or product documents, preserves extracted, inferred, and ambiguous confidence, and verifies source locations before turning graph edges into findings.
 
 ### Orchestrator
 
@@ -149,6 +156,7 @@ Optional orchestration helper:
 
 Optional graph integrations:
 
+- an LSP client exposed by the host agent and a language server for the project language
 - code-review-graph for structural code intelligence
 - Graphify for semantic corpus graphs
 
@@ -363,7 +371,7 @@ Use its MCP tools when the host agent exposes them. Start with minimal context a
 
 ### Graphify
 
-Install Graphify's `graphifyy` package (double `y`), then build a semantic graph only when cross-document reasoning is useful:
+Install Graphify's `graphifyy` package (double `y`). Detailed mapping uses it alongside LSP; update an existing graph instead of rebuilding it:
 
 ```bash
 pipx install graphifyy
@@ -372,7 +380,7 @@ graphify query "Which design decisions affect authentication?"
 graphify path "Authentication" "Audit logging"
 ```
 
-Graphify is not a required step for ordinary code review. code-review-graph covers structural code relationships more cheaply.
+Graphify is not required for a small, self-contained diff. It is mandatory when available for detailed architecture, flow, impact, onboarding, security, or data-mapping work. code-review-graph complements Graphify with structural relationships; it does not replace LSP or semantic mapping.
 
 ## Use the skill
 
@@ -397,7 +405,13 @@ Use $my-beast-mode to review main...HEAD. Use code-review-graph for blast radius
 ```
 
 ```text
-Use $my-beast-mode to map relationships across the ADRs and implementation. Use Graphify only if structural analysis is insufficient.
+Use $my-beast-mode to map relationships across the ADRs and implementation. Use available LSP and Graphify evidence and verify the map against current source.
+```
+
+Detailed mapping example:
+
+```text
+Use $my-beast-mode for a detailed authentication flow map. Use LSP for symbols, references, implementations, and call hierarchy; use Graphify for semantic paths across code and ADRs; verify both against current source.
 ```
 
 ```text
@@ -650,15 +664,15 @@ For an unlisted multi-skill bundle, create a [skills.sh pack](https://skills.sh/
 
 Short catalog description:
 
-> Minimal, graph-aware code review with searchable local memory, RTK-optimized shell output, and optional local or remote orchestration.
+> Minimal code review with enforced LSP and Graphify mapping for detailed analysis, searchable local memory, RTK-optimized shell output, and optional orchestration.
 
 Full catalog description:
 
-> Review, debug, and change code with Caveman brevity, Ponytail minimalism, RTK-optimized shell execution, code-review-graph blast-radius analysis, Graphify semantic mapping, searchable private usage memory, and a detailed optimization dashboard. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent.
+> Review, debug, map, and change code with Caveman brevity, Ponytail minimalism, RTK-optimized shell execution, enforced LSP symbol analysis and Graphify semantic mapping for detailed work, code-review-graph blast-radius analysis, searchable private usage memory, and a detailed optimization dashboard. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent.
 
 Suggested repository description:
 
-> Portable Agent Skills combining concise reviews, minimal fixes, token-efficient commands, structural and semantic graphs, searchable local memory, and optional local-first orchestration.
+> Portable Agent Skills combining concise reviews, minimal fixes, token-efficient commands, enforced LSP and Graphify analysis for detailed mapping, searchable local memory, and optional local-first orchestration.
 
 Dashboard catalog description:
 
@@ -671,7 +685,7 @@ Recall catalog description:
 Suggested topics:
 
 ```text
-agent-skills code-review knowledge-graph rtk token-optimization local-memory recall dashboard ollama gemma4 skills-sh codex claude-code cursor copilot
+agent-skills code-review lsp knowledge-graph graphify rtk token-optimization local-memory recall dashboard ollama gemma4 skills-sh codex claude-code cursor copilot
 ```
 
 ## Troubleshooting
@@ -764,9 +778,13 @@ code-review-graph update --brief
 
 Rebuild only after a missing/corrupt graph, major branch shift, or tool recommendation.
 
+### LSP is unavailable
+
+Confirm the host agent exposes language-server tools and that the project language server is installed and initialized. The skill must state this verification gap, then fall back to repository search and direct source inspection instead of claiming semantic symbol coverage.
+
 ### Graphify is expensive for a simple review
 
-Skip it. Use the diff, code-review-graph, repository search, and focused tests. Graphify earns its cost only when semantic relationships across sources matter.
+Skip it for a small, self-contained diff. For detailed mapping or analysis, narrow the indexed scope and update the existing graph; if Graphify is unavailable, report the gap and use LSP, repository search, direct source inspection, and focused tests.
 
 ## License
 
