@@ -54,6 +54,58 @@ def project_label(path: str) -> str:
     return "~" + path[len(home) :] if path == home or path.startswith(home + os.sep) else path
 
 
+def memory_path(explicit: str | None) -> Path:
+    return Path(explicit or os.environ.get("MY_BEAST_MODE_MEMORY", "~/.my-beast-mode/memory.jsonl")).expanduser()
+
+
+def safe_int(value: object) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def read_memories(path: Path) -> list[list[object]]:
+    if not path.is_file():
+        return []
+    starts: dict[str, dict[str, object]] = {}
+    finishes: dict[str, dict[str, object]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+            session = event["session"]
+            if event.get("event") == "start":
+                starts[session] = event
+            elif event.get("event") == "finish":
+                finishes[session] = event
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue
+    sessions = []
+    for session, start in starts.items():
+        finish = finishes.get(session, {})
+        started, ended = str(start.get("timestamp", "")), str(finish.get("timestamp", ""))
+        duration = 0
+        if ended:
+            try:
+                duration = max(0, int((dt.datetime.fromisoformat(ended) - dt.datetime.fromisoformat(started)).total_seconds()))
+            except (TypeError, ValueError):
+                pass
+        sessions.append([
+            started,
+            ended,
+            project_label(str(start.get("project", ""))),
+            start.get("task_type", "other"),
+            start.get("orchestrator", "host"),
+            finish.get("outcome", "incomplete"),
+            finish.get("summary", start.get("summary", "")),
+            safe_int(finish.get("files_changed", 0)),
+            safe_int(finish.get("checks_passed", 0)),
+            safe_int(finish.get("checks_failed", 0)),
+            duration,
+        ])
+    return sorted(sessions, key=lambda row: row[0], reverse=True)
+
+
 def read_records(db_path: Path) -> list[list[object]]:
     uri = f"file:{db_path.as_posix()}?mode=ro&immutable=1"
     with sqlite3.connect(uri, uri=True) as db:
@@ -76,37 +128,42 @@ def safe_json(value: object) -> str:
     return json.dumps(value, separators=(",", ":")).replace("</", "<\\/")
 
 
-def render(records: list[list[object]], db_path: Path) -> str:
+def render(records: list[list[object]], db_path: Path, memories: list[list[object]], memory: Path) -> str:
     generated = dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     source = project_label(str(db_path))
     data = safe_json(records)
+    memory_data = safe_json(memories)
+    memory_source = project_label(str(memory))
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>My Beast Mode · RTK Savings</title>
 <style>
 :root{{--bg:#090d18;--panel:#111827;--soft:#1c2638;--text:#edf4ff;--muted:#98a9c3;--green:#62f5b5;--cyan:#5dd7ff;--purple:#a78bfa;--line:#26344d}}
 *{{box-sizing:border-box}} body{{margin:0;background:radial-gradient(circle at 80% 0,#17213d 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}}
-main{{max-width:1280px;margin:auto;padding:32px 20px 64px}} header{{display:flex;justify-content:space-between;gap:20px;align-items:end;flex-wrap:wrap}} h1{{font-size:clamp(28px,5vw,48px);line-height:1;margin:0}} h2{{font-size:18px;margin:0 0 18px}} .eyebrow,.meta,small{{color:var(--muted)}} .eyebrow{{text-transform:uppercase;letter-spacing:.14em;font-weight:700}} .filters{{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);padding:5px;border-radius:12px}} button{{color:var(--muted);background:transparent;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit}} button.active,button:hover{{background:var(--soft);color:var(--text)}} .kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0}} .card,.panel{{background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:16px}} .card{{padding:20px}} .value{{font-size:clamp(24px,4vw,36px);font-weight:750;margin-top:5px}} .saved{{color:var(--green)}} .grid{{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}} .panel{{padding:20px;min-width:0}} #trend{{width:100%;height:230px;display:block}} .axis{{stroke:#33415d;stroke-width:1}} .trend{{fill:none;stroke:var(--green);stroke-width:3;stroke-linejoin:round}} .area{{fill:url(#fade)}} .bars{{display:grid;gap:12px}} .bar-head{{display:flex;justify-content:space-between;gap:12px}} .bar-track{{height:8px;background:var(--soft);border-radius:10px;overflow:hidden}} .bar-fill{{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:inherit}} .table-panel{{margin-top:14px;overflow:hidden}} .scroll{{overflow:auto}} table{{border-collapse:collapse;width:100%;min-width:860px}} th,td{{padding:12px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}} th{{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em}} th:first-child,td:first-child,th:last-child,td:last-child{{text-align:left}} tbody tr{{cursor:pointer}} tbody tr:hover,tbody tr.selected{{background:var(--soft)}} .project{{max-width:330px;overflow:hidden;text-overflow:ellipsis}} .pill{{display:inline-block;background:#1b3041;color:var(--cyan);padding:2px 7px;border-radius:99px;margin:2px;font-size:12px}} .empty{{padding:50px;text-align:center;color:var(--muted)}} footer{{margin-top:16px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}} @media(max-width:800px){{.kpis{{grid-template-columns:repeat(2,1fr)}}.grid{{grid-template-columns:1fr}}}} @media(max-width:460px){{.kpis{{grid-template-columns:1fr}}}}
+main{{max-width:1400px;margin:auto;padding:32px 20px 64px}} header{{display:flex;justify-content:space-between;gap:20px;align-items:end;flex-wrap:wrap}} h1{{font-size:clamp(28px,5vw,48px);line-height:1;margin:0}} h2{{font-size:18px;margin:0 0 18px}} .eyebrow,.meta,small{{color:var(--muted)}} .eyebrow{{text-transform:uppercase;letter-spacing:.14em;font-weight:700}} .filters{{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);padding:5px;border-radius:12px}} button{{color:var(--muted);background:transparent;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit}} button.active,button:hover{{background:var(--soft);color:var(--text)}} .kpis,.memory-kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0}} .memory-kpis{{margin:0 0 18px}} .card,.panel{{background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:16px}} .card{{padding:20px}} .memory-kpis .card{{background:var(--soft);padding:14px}} .value{{font-size:clamp(24px,4vw,36px);font-weight:750;margin-top:5px}} .memory-kpis .value{{font-size:24px}} .saved,.success{{color:var(--green)}} .failed{{color:#fb7185}} .grid{{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}} .panel{{padding:20px;min-width:0}} #trend{{width:100%;height:230px;display:block}} .axis{{stroke:#33415d;stroke-width:1}} .trend{{fill:none;stroke:var(--green);stroke-width:3;stroke-linejoin:round}} .area{{fill:url(#fade)}} .bars{{display:grid;gap:12px}} .bar-head{{display:flex;justify-content:space-between;gap:12px}} .bar-track{{height:8px;background:var(--soft);border-radius:10px;overflow:hidden}} .bar-fill{{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:inherit}} .table-panel{{margin-top:14px;overflow:hidden}} .scroll{{overflow:auto}} table{{border-collapse:collapse;width:100%;min-width:1100px}} th,td{{padding:12px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}} th{{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em}} th:first-child,td:first-child,th:last-child,td:last-child{{text-align:left}} #rows tr{{cursor:pointer}} tbody tr:hover,tbody tr.selected{{background:var(--soft)}} .project,.summary{{max-width:330px;overflow:hidden;text-overflow:ellipsis}} .pill{{display:inline-block;background:#1b3041;color:var(--cyan);padding:2px 7px;border-radius:99px;margin:2px;font-size:12px}} .empty{{padding:50px;text-align:center;color:var(--muted)}} footer{{margin-top:16px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}} @media(max-width:800px){{.kpis,.memory-kpis{{grid-template-columns:repeat(2,1fr)}}.grid{{grid-template-columns:1fr}}}} @media(max-width:460px){{.kpis,.memory-kpis{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <header><div><div class="eyebrow">Local RTK analytics</div><h1>My Beast Mode</h1><div class="meta">Token optimization by project · updated {html.escape(generated)}</div></div>
 <div class="filters" aria-label="Time period"><button data-days="7">7d</button><button data-days="30" class="active">30d</button><button data-days="90">90d</button><button data-days="0">All</button></div></header>
-<section class="kpis"><div class="card"><small>Tokens saved</small><div id="saved" class="value saved">—</div></div><div class="card"><small>Compression</small><div id="rate" class="value">—</div></div><div class="card"><small>Commands optimized</small><div id="commands" class="value">—</div></div><div class="card"><small>Active projects</small><div id="projects" class="value">—</div></div></section>
+<section class="kpis"><div class="card"><small>Tokens saved</small><div id="saved" class="value saved">—</div></div><div class="card"><small>Compression</small><div id="rate" class="value">—</div></div><div class="card"><small>Raw output</small><div id="raw" class="value">—</div></div><div class="card"><small>Optimized output</small><div id="optimized" class="value">—</div></div><div class="card"><small>Commands optimized</small><div id="commands" class="value">—</div></div><div class="card"><small>Active projects</small><div id="projects" class="value">—</div></div><div class="card"><small>Average saved / command</small><div id="average" class="value">—</div></div><div class="card"><small>Active days</small><div id="active-days" class="value">—</div></div></section>
 <section class="grid"><div class="panel"><h2>Daily tokens saved</h2><svg id="trend" role="img" aria-label="Daily saved-token trend"></svg></div><div class="panel"><h2 id="detail-title">How RTK optimized output</h2><div id="categories" class="bars"></div></div></section>
-<section class="panel table-panel"><h2>Projects</h2><div class="scroll"><table><thead><tr><th>Project</th><th>Raw</th><th>Optimized</th><th>Saved</th><th>Savings</th><th>Commands</th><th>How</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden>No RTK activity in this period.</div></section>
-<footer>Private local report · source: {html.escape(source)} · RTK estimates tokens from text size; values are optimization analytics, not API billing records.</footer>
+<section class="panel table-panel"><h2>Project detail</h2><div class="scroll"><table><thead><tr><th>Project</th><th>Raw</th><th>Optimized</th><th>Saved</th><th>Savings</th><th>Avg saved</th><th>Commands</th><th>Days</th><th>Beast runs</th><th>Last active</th><th>How</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden>No RTK activity in this period.</div></section>
+<section class="panel table-panel"><h2>Beast Mode memory</h2><div class="memory-kpis"><div class="card"><small>Recorded runs</small><div id="memory-runs" class="value">—</div></div><div class="card"><small>Completion rate</small><div id="memory-rate" class="value">—</div></div><div class="card"><small>Average duration</small><div id="memory-duration" class="value">—</div></div><div class="card"><small>Checks passed</small><div id="memory-checks" class="value success">—</div></div></div><div class="scroll"><table><thead><tr><th>Started</th><th>Project</th><th>Task</th><th>Orchestrator</th><th>Duration</th><th>Outcome</th><th>Files</th><th>Checks</th><th>Memory</th></tr></thead><tbody id="memory-rows"></tbody></table></div><div id="memory-empty" class="empty" hidden>No Beast Mode memory in this period. New uses will appear after the skill records them.</div></section>
+<footer>Private local report · RTK: {html.escape(source)} · memory: {html.escape(memory_source)} · RTK estimates tokens from text size; values are optimization analytics, not API billing records.</footer>
 </main><script>
 const records={data};
+const memories={memory_data};
 const fmt=n=>Intl.NumberFormat(undefined,{{notation:'compact',maximumFractionDigits:1}}).format(n||0);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
 let days=30, selected='';
 function aggregate(){{
  const cutoff=days?new Date(Date.now()-days*864e5).toISOString().slice(0,10):'';
- const filtered=records.filter(r=>!cutoff||r[0]>=cutoff), projects=new Map(), daily=new Map(), allCats=new Map();
+ const filtered=records.filter(r=>!cutoff||r[0]>=cutoff), memoryFiltered=memories.filter(m=>!cutoff||m[0].slice(0,10)>=cutoff),projects=new Map(),daily=new Map(),allCats=new Map(),memoryByProject=new Map();
  for(const [date,project,family,raw,opt,saved] of filtered){{
-  const p=projects.get(project)||{{project,raw:0,opt:0,saved:0,count:0,cats:new Map()}}; p.raw+=raw;p.opt+=opt;p.saved+=saved;p.count++;p.cats.set(family,(p.cats.get(family)||0)+saved);projects.set(project,p);
+  const p=projects.get(project)||{{project,raw:0,opt:0,saved:0,count:0,cats:new Map(),dates:new Set(),last:''}};p.raw+=raw;p.opt+=opt;p.saved+=saved;p.count++;p.dates.add(date);p.last=date;p.cats.set(family,(p.cats.get(family)||0)+saved);projects.set(project,p);
   daily.set(date,(daily.get(date)||0)+saved);allCats.set(family,(allCats.get(family)||0)+saved);
  }}
- return {{items:[...projects.values()].sort((a,b)=>b.saved-a.saved),daily:[...daily].sort(),cats:allCats,filtered}};
+ for(const memory of memoryFiltered)memoryByProject.set(memory[2],(memoryByProject.get(memory[2])||0)+1);
+ return {{items:[...projects.values()].sort((a,b)=>b.saved-a.saved),daily:[...daily].sort(),cats:allCats,filtered,memoryFiltered,memoryByProject}};
 }}
 function categoryRows(cats){{
  const items=[...cats].sort((a,b)=>b[1]-a[1]).slice(0,8),max=Math.max(1,...items.map(x=>x[1]));
@@ -119,28 +176,32 @@ function drawTrend(points){{
  const line=xy.map((v,i)=>(i?'L':'M')+v.join(',')).join(' '),area=`${{line}} L${{xy.at(-1)[0]}},${{h-p}} L${{xy[0][0]}},${{h-p}} Z`;
  svg.setAttribute('viewBox',`0 0 ${{w}} ${{h}}`);svg.innerHTML=`<defs><linearGradient id="fade" x2="0" y2="1"><stop stop-color="#62f5b5" stop-opacity=".25"/><stop offset="1" stop-color="#62f5b5" stop-opacity="0"/></linearGradient></defs><line class="axis" x1="${{p}}" y1="${{h-p}}" x2="${{w-p}}" y2="${{h-p}}"/><path class="area" d="${{area}}"/><path class="trend" d="${{line}}"/><text x="${{p}}" y="14" fill="#98a9c3">${{fmt(max)}}</text>`;
 }}
+function duration(seconds){{if(!seconds)return '—';if(seconds<60)return `${{seconds}}s`;if(seconds<3600)return `${{Math.round(seconds/60)}}m`;return `${{(seconds/3600).toFixed(1)}}h`}}
 function render(){{
- const a=aggregate(),raw=a.items.reduce((n,p)=>n+p.raw,0),saved=a.items.reduce((n,p)=>n+p.saved,0);
- document.querySelector('#saved').textContent=fmt(saved);document.querySelector('#rate').textContent=raw?`${{(saved/raw*100).toFixed(1)}}%`:'0%';document.querySelector('#commands').textContent=a.filtered.length.toLocaleString();document.querySelector('#projects').textContent=a.items.length.toLocaleString();drawTrend(a.daily);
+ const a=aggregate(),raw=a.items.reduce((n,p)=>n+p.raw,0),optimized=a.items.reduce((n,p)=>n+p.opt,0),saved=a.items.reduce((n,p)=>n+p.saved,0),activeDays=new Set(a.filtered.map(r=>r[0])).size;
+ document.querySelector('#saved').textContent=fmt(saved);document.querySelector('#rate').textContent=raw?`${{(saved/raw*100).toFixed(1)}}%`:'0%';document.querySelector('#raw').textContent=fmt(raw);document.querySelector('#optimized').textContent=fmt(optimized);document.querySelector('#commands').textContent=a.filtered.length.toLocaleString();document.querySelector('#projects').textContent=a.items.length.toLocaleString();document.querySelector('#average').textContent=fmt(a.filtered.length?saved/a.filtered.length:0);document.querySelector('#active-days').textContent=activeDays.toLocaleString();drawTrend(a.daily);
  const chosen=a.items.find(p=>p.project===selected);document.querySelector('#detail-title').textContent=chosen?`How · ${{chosen.project}}`:'How RTK optimized output';document.querySelector('#categories').innerHTML=categoryRows(chosen?chosen.cats:a.cats);
- document.querySelector('#rows').innerHTML=a.items.map(p=>{{const cats=[...p.cats].sort((x,y)=>y[1]-x[1]).slice(0,3).map(x=>`<span class="pill">${{esc(x[0])}}</span>`).join('');return `<tr data-project="${{esc(p.project)}}" class="${{p.project===selected?'selected':''}}"><td class="project" title="${{esc(p.project)}}">${{esc(p.project)}}</td><td>${{fmt(p.raw)}}</td><td>${{fmt(p.opt)}}</td><td class="saved">${{fmt(p.saved)}}</td><td>${{p.raw?(p.saved/p.raw*100).toFixed(1):0}}%</td><td>${{p.count.toLocaleString()}}</td><td>${{cats}}</td></tr>`}}).join('');document.querySelector('#empty').hidden=!!a.items.length;
- document.querySelectorAll('tbody tr').forEach(row=>row.onclick=()=>{{selected=selected===row.dataset.project?'':row.dataset.project;render()}});
+ document.querySelector('#rows').innerHTML=a.items.map(p=>{{const cats=[...p.cats].sort((x,y)=>y[1]-x[1]).slice(0,3).map(x=>`<span class="pill">${{esc(x[0])}}</span>`).join('');return `<tr data-project="${{esc(p.project)}}" class="${{p.project===selected?'selected':''}}"><td class="project" title="${{esc(p.project)}}">${{esc(p.project)}}</td><td>${{fmt(p.raw)}}</td><td>${{fmt(p.opt)}}</td><td class="saved">${{fmt(p.saved)}}</td><td>${{p.raw?(p.saved/p.raw*100).toFixed(1):0}}%</td><td>${{fmt(p.count?p.saved/p.count:0)}}</td><td>${{p.count.toLocaleString()}}</td><td>${{p.dates.size}}</td><td>${{a.memoryByProject.get(p.project)||0}}</td><td>${{p.last}}</td><td>${{cats}}</td></tr>`}}).join('');document.querySelector('#empty').hidden=!!a.items.length;
+ document.querySelectorAll('#rows tr').forEach(row=>row.onclick=()=>{{selected=selected===row.dataset.project?'':row.dataset.project;render()}});
+ const completed=a.memoryFiltered.filter(m=>m[5]!=='incomplete'),checks=a.memoryFiltered.reduce((n,m)=>n+m[8],0),avgDuration=completed.length?completed.reduce((n,m)=>n+m[10],0)/completed.length:0;
+ document.querySelector('#memory-runs').textContent=a.memoryFiltered.length.toLocaleString();document.querySelector('#memory-rate').textContent=a.memoryFiltered.length?`${{(completed.length/a.memoryFiltered.length*100).toFixed(1)}}%`:'0%';document.querySelector('#memory-duration').textContent=duration(Math.round(avgDuration));document.querySelector('#memory-checks').textContent=checks.toLocaleString();
+ document.querySelector('#memory-rows').innerHTML=a.memoryFiltered.slice(0,25).map(m=>`<tr><td>${{new Date(m[0]).toLocaleString()}}</td><td class="project" title="${{esc(m[2])}}">${{esc(m[2])}}</td><td><span class="pill">${{esc(m[3])}}</span></td><td>${{esc(m[4])}}</td><td>${{duration(m[10])}}</td><td class="${{m[5]==='success'?'success':m[5]==='failed'?'failed':''}}">${{esc(m[5])}}</td><td>${{m[7]}}</td><td>${{m[8]}} passed${{m[9]?`, ${{m[9]}} failed`:''}}</td><td class="summary" title="${{esc(m[6])}}">${{esc(m[6])}}</td></tr>`).join('');document.querySelector('#memory-empty').hidden=!!a.memoryFiltered.length;
 }}
 document.querySelectorAll('[data-days]').forEach(b=>b.onclick=()=>{{days=+b.dataset.days;selected='';document.querySelectorAll('[data-days]').forEach(x=>x.classList.toggle('active',x===b));render()}});render();
 </script></body></html>"""
 
 
-def write_dashboard(db_path: Path, output: Path) -> Path:
+def write_dashboard(db_path: Path, output: Path, memory: Path) -> Path:
     records = read_records(db_path)
     output = output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render(records, db_path), encoding="utf-8")
+    output.write_text(render(records, db_path, read_memories(memory), memory), encoding="utf-8")
     return output
 
 
 def self_test() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        db_path, output = Path(tmp) / "history.db", Path(tmp) / "dashboard.html"
+        db_path, output, memory = Path(tmp) / "history.db", Path(tmp) / "dashboard.html", Path(tmp) / "memory.jsonl"
         with sqlite3.connect(db_path) as db:
             db.execute("CREATE TABLE commands(timestamp TEXT, project_path TEXT, rtk_cmd TEXT, input_tokens INTEGER, output_tokens INTEGER, saved_tokens INTEGER)")
             db.executemany("INSERT INTO commands VALUES(?,?,?,?,?,?)", [
@@ -148,14 +209,20 @@ def self_test() -> None:
                 ("2026-09-02T10:00:00Z", "/work/beta", "rtk pytest -q", 800, 500, 300),
             ])
             db.commit()
-        page = write_dashboard(db_path, output).read_text(encoding="utf-8")
-        assert "/work/alpha" in page and "git" in page and "pytest" in page and "700" in page
+        memory.write_text(
+            '{"event":"start","session":"one","timestamp":"2026-09-02T09:00:00+00:00","project":"/work/alpha","task_type":"review","orchestrator":"host","summary":"Review change"}\n'
+            '{"event":"finish","session":"one","timestamp":"2026-09-02T09:05:00+00:00","project":"/work/alpha","outcome":"success","summary":"Review complete","files_changed":1,"checks_passed":2,"checks_failed":0}\n',
+            encoding="utf-8",
+        )
+        page = write_dashboard(db_path, output, memory).read_text(encoding="utf-8")
+        assert all(value in page for value in ("/work/alpha", "git", "pytest", "700", "Review complete", "memory-runs"))
     print("self-test passed")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", help="RTK history.db path")
+    parser.add_argument("--memory", help="My Beast Mode memory.jsonl path")
     parser.add_argument("--output", default=".my-beast-mode/dashboard.html", help="output HTML path")
     parser.add_argument("--open", action="store_true", help="open the dashboard in the default browser")
     parser.add_argument("--self-test", action="store_true", help="run the bundled smoke test")
@@ -163,7 +230,7 @@ def main() -> None:
     if args.self_test:
         self_test()
         return
-    output = write_dashboard(find_database(args.db), Path(args.output))
+    output = write_dashboard(find_database(args.db), Path(args.output), memory_path(args.memory))
     print(output)
     if args.open:
         webbrowser.open(output.as_uri())

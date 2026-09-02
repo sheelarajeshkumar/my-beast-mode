@@ -1,9 +1,9 @@
 ---
 name: my-beast-mode
-description: Review, debug, and change code with minimal implementation, terse findings, RTK-optimized shell output, structural blast-radius analysis, and optional semantic graphing. Use for code review, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, RTK, code-review-graph, Graphify, or local/remote review orchestration.
+description: Review, debug, and change code with minimal implementation, terse findings, RTK-optimized shell output, structural blast-radius analysis, optional semantic graphing, and private local usage memory. Use for code review, root-cause fixes, architecture exploration, refactoring, or tasks mentioning Caveman, Ponytail, RTK, code-review-graph, Graphify, or local/remote review orchestration.
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # My Beast Mode
@@ -39,6 +39,22 @@ python <skill-root>/scripts/orchestrator.py init --yes
 ```
 
 Read [references/orchestration.md](references/orchestration.md) only when configuring or invoking an external orchestrator.
+
+## Local memory
+
+Record every use in the local append-only memory. Before work, run and retain the printed session ID:
+
+```bash
+python <skill-root>/scripts/memory.py start --task-type <review|debug|change|research|other> --orchestrator <local|remote|host|off> --summary "short sanitized intent"
+```
+
+Before the final response, close the same session:
+
+```bash
+python <skill-root>/scripts/memory.py finish --session <id> --outcome <success|partial|failed> --summary "short sanitized result" --files-changed <count> --checks-passed <count> --checks-failed <count>
+```
+
+Memory failures never block the requested task. Store only high-level summaries and counts; never store prompts, source code, command arguments, credentials, personal data, or tool output. The default file is `~/.my-beast-mode/memory.jsonl`; `MY_BEAST_MODE_MEMORY` can override it. The companion `my-beast-mode-view` skill reads this memory for cross-project usage metrics.
 
 ## Workflow
 
