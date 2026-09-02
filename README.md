@@ -1,0 +1,476 @@
+# My Beast Mode
+
+`my-beast-mode` is a portable Agent Skill for small, evidence-backed code changes and reviews. It combines:
+
+- Caveman-style concise communication
+- Ponytail-style minimal implementation and YAGNI discipline
+- code-review-graph structural impact analysis
+- Graphify semantic and cross-document analysis
+- optional local, remote, or host-agent orchestration
+
+The default orchestrator is local Ollama with the small `gemma4:e2b` model. Orchestration is advisory and optional: the host coding agent keeps all tool access, permissions, edits, and verification.
+
+## Why this shape
+
+This repository uses the shared Agent Skills format: one `SKILL.md` with standard YAML frontmatter plus optional `scripts/` and `references/`. It avoids agent-specific tool names, hooks, and frontmatter, so the same package can be installed by skills.sh into any supported Agent Skills client.
+
+code-review-graph and Graphify remain optional external integrations. The skill still works with normal repository search, source inspection, diffs, and tests when either CLI is absent.
+
+## Behavior
+
+### Caveman
+
+Responses stay short and technically complete. Review findings lead with severity, location, impact, evidence, and the smallest safe fix. Safety warnings and destructive procedures use full prose when terseness could be misunderstood.
+
+### Ponytail
+
+The agent reads the affected flow before editing, searches for an existing solution, and stops at the first sufficient option:
+
+1. Skip speculative work.
+2. Reuse repository code.
+3. Use the standard library.
+4. Use native platform features.
+5. Use an existing dependency.
+6. Write the minimum new code.
+
+Root-cause fixes belong at the narrowest shared point, not in every caller. Non-trivial changes leave one focused runnable check.
+
+### code-review-graph
+
+For code structure, the agent prefers an existing graph to broad file reads. It uses minimal context, blast radius, call relationships, execution flows, and relevant tests, then confirms findings in source. Generated graph data is an index, never the final authority.
+
+### Graphify
+
+For ADRs, research, diagrams, screenshots, product documents, or relationships spanning code and prose, the agent can use Graphify. It preserves extracted, inferred, and ambiguous confidence and verifies source locations before turning graph edges into findings.
+
+### Orchestrator
+
+The optional orchestrator returns a compact JSON plan. It never executes tools or authorizes actions.
+
+| Choice | Description | Default |
+| --- | --- | --- |
+| Local | Ollama through its OpenAI-compatible API | `gemma4:e2b` at `http://127.0.0.1:11434/v1` |
+| Remote | Any user-approved OpenAI-compatible endpoint | User supplies URL and model |
+| Host | Current coding agent plans directly | No external service |
+
+## Repository layout
+
+```text
+my-beast-mode-skill/
+├── LICENSE
+├── README.md
+└── skills/
+    └── my-beast-mode/
+        ├── SKILL.md
+        ├── references/
+        │   ├── orchestration.md
+        │   └── review-workflow.md
+        └── scripts/
+            └── orchestrator.py
+```
+
+## Requirements
+
+Core skill:
+
+- an Agent Skills-compatible client
+- no runtime dependency
+
+Optional orchestration helper:
+
+- Python 3.10 or newer
+- Ollama for local mode, or an OpenAI-compatible HTTP endpoint for remote mode
+
+Optional graph integrations:
+
+- code-review-graph for structural code intelligence
+- Graphify for semantic corpus graphs
+
+## Install with skills.sh
+
+After publishing this folder to a public GitHub repository:
+
+```bash
+npx skills add OWNER/REPOSITORY --skill my-beast-mode
+```
+
+Install globally:
+
+```bash
+npx skills add OWNER/REPOSITORY --skill my-beast-mode -g -y
+```
+
+Install for selected agents:
+
+```bash
+npx skills add OWNER/REPOSITORY --skill my-beast-mode --agent codex claude-code cursor
+```
+
+Run `npx skills add --help` for the agent identifiers supported by the installed CLI version. The CLI can auto-detect installed agents when `--agent` is omitted.
+
+Update later:
+
+```bash
+npx skills update my-beast-mode
+```
+
+Remove:
+
+```bash
+npx skills remove my-beast-mode
+```
+
+## Manual installation
+
+Copy `skills/my-beast-mode/` into the skill directory used by the target agent. Common project-level locations include:
+
+| Agent family | Typical project directory |
+| --- | --- |
+| Universal, Amp, Replit | `.agents/skills/` |
+| Claude Code | `.claude/skills/` |
+| Codex | `.agents/skills/` or the location configured by the client |
+| GitHub Copilot | `.github/skills/` |
+| Cursor, Cline, Gemini CLI, and others | Use the client path selected by the skills CLI |
+
+Example:
+
+```bash
+mkdir -p .agents/skills
+cp -R skills/my-beast-mode .agents/skills/
+```
+
+Restart or reload the agent if it does not discover newly installed skills automatically.
+
+## First-run onboarding
+
+The skill asks which agent should orchestrate:
+
+1. local Ollama (default)
+2. remote OpenAI-compatible endpoint
+3. current host agent
+
+The choice can stay session-only. To persist it in the current project, run the helper from the installed skill directory.
+
+Interactive:
+
+```bash
+python scripts/orchestrator.py init
+```
+
+Accept local defaults without prompts:
+
+```bash
+python scripts/orchestrator.py init --yes
+```
+
+Use the host agent only:
+
+```bash
+python scripts/orchestrator.py init --mode host --yes
+```
+
+The helper creates `.my-beast-mode.json`. It refuses to overwrite an existing configuration unless `--force` is used.
+
+### Local Ollama setup
+
+Install Ollama using its platform instructions, then:
+
+```bash
+ollama pull gemma4:e2b
+ollama serve
+python scripts/orchestrator.py init --mode local --yes
+python scripts/orchestrator.py status --check
+```
+
+Generated configuration:
+
+```json
+{
+  "version": 1,
+  "orchestrator": {
+    "mode": "local",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "gemma4:e2b",
+    "api_key_env": "",
+    "timeout_seconds": 60
+  }
+}
+```
+
+Use another local model by passing `--model` during onboarding or editing the non-secret config.
+
+### Remote setup
+
+Remote mode accepts an OpenAI-compatible base URL. Put the secret in an environment variable, never in the config file:
+
+```bash
+export MY_BEAST_MODE_API_KEY="your-secret"
+python scripts/orchestrator.py init \
+  --mode remote \
+  --base-url https://api.example.com/v1 \
+  --model example-model \
+  --api-key-env MY_BEAST_MODE_API_KEY
+```
+
+Remote mode must be explicitly authorized before private code or context leaves the device. The helper sends only the task plus the file passed through `--context-file`; it never scans the repository itself.
+
+### Request a plan
+
+```bash
+python scripts/orchestrator.py plan \
+  --task "Review changes since main and identify blast radius"
+```
+
+With deliberately selected context:
+
+```bash
+git diff --stat main...HEAD > /tmp/review-context.txt
+python scripts/orchestrator.py plan \
+  --task "Plan review of this branch" \
+  --context-file /tmp/review-context.txt
+```
+
+The helper limits context files to 100,000 bytes and asks the model for JSON with scope, graph steps, focus areas, checks, and parallelism. If orchestration fails, the host agent continues without it.
+
+## Install optional graph tools
+
+### code-review-graph
+
+Install it separately because it is a full CLI and MCP service, not content that should be copied into this skill:
+
+```bash
+pipx install code-review-graph
+code-review-graph install
+code-review-graph build
+```
+
+Typical review flow:
+
+```bash
+code-review-graph status --json
+code-review-graph update --brief
+code-review-graph detect-changes --brief
+```
+
+Use its MCP tools when the host agent exposes them. Start with minimal context and use the graph to narrow source reads. Keep `.code-review-graph/` out of version control.
+
+### Graphify
+
+Install Graphify's `graphifyy` package (double `y`), then build a semantic graph only when cross-document reasoning is useful:
+
+```bash
+pipx install graphifyy
+graphify /path/to/corpus
+graphify query "Which design decisions affect authentication?"
+graphify path "Authentication" "Audit logging"
+```
+
+Graphify is not a required step for ordinary code review. code-review-graph covers structural code relationships more cheaply.
+
+## Use the skill
+
+Most agents select the skill automatically from its description. Explicit invocation is also possible:
+
+```text
+Use $my-beast-mode to review my working-tree changes.
+```
+
+Other examples:
+
+```text
+Use $my-beast-mode to diagnose this failure and fix the shared root cause.
+```
+
+```text
+Use $my-beast-mode to review main...HEAD. Use code-review-graph for blast radius, but do not modify files.
+```
+
+```text
+Use $my-beast-mode to map relationships across the ADRs and implementation. Use Graphify only if structural analysis is insufficient.
+```
+
+```text
+Use $my-beast-mode with remote orchestration. Send only the diff summary, not source files.
+```
+
+### Expected review output
+
+```text
+[P1] Authorization check occurs after mutation - src/orders.ts:84
+Unauthorized request can write before rejection. Move existing guard above update call.
+
+Verification: focused authorization test passed.
+Residual risk: integration suite not run.
+```
+
+No findings:
+
+```text
+No actionable findings.
+Verified: changed unit tests and static checks.
+Not verified: production integration and remote dependencies.
+```
+
+## Modes and overrides
+
+The composite defaults are Caveman `full` and Ponytail `full`. A user can override them in a request:
+
+```text
+Use my-beast-mode with Caveman lite and Ponytail full.
+```
+
+```text
+Use my-beast-mode, but give a full review report with explanations.
+```
+
+Requested reports, walkthroughs, and safety explanations are not shortened merely to preserve the terse style.
+
+## Security and privacy
+
+- The host agent retains permissions and execution authority.
+- The orchestrator receives planning text only.
+- Remote requests require user authorization for private context.
+- API keys stay in environment variables.
+- The helper does not scan the repository or read `.env` files.
+- Graph claims are verified against source before edits or findings.
+- Generated graph caches should not be committed.
+- Review any third-party skill or CLI before installation.
+
+## Cross-agent compatibility
+
+The distributable skill uses only portable Agent Skills fields: `name`, `description`, `license`, `compatibility`, and string-valued `metadata`. It does not require:
+
+- agent-specific hooks
+- `allowed-tools`
+- forked skill context
+- a particular subagent API
+- an MCP server for core behavior
+- a specific shell
+
+Optional commands are examples. When a host lacks a command or tool, it follows the same decision rules with its native file search, VCS, and test capabilities.
+
+Compatibility means the instruction package can load across conforming clients. It does not mean every optional integration is available on every operating system or host.
+
+## Validate locally
+
+Run the bundled offline check:
+
+```bash
+python skills/my-beast-mode/scripts/orchestrator.py self-test
+```
+
+Validate the Agent Skills schema with `skills-ref` when installed:
+
+```bash
+skills-ref validate skills/my-beast-mode
+```
+
+You can also test discovery without installing globally:
+
+```bash
+npx skills add . --skill my-beast-mode
+```
+
+## Publish to skills.sh
+
+skills.sh discovers valid skills from public GitHub repositories. To publish:
+
+1. Create a public GitHub repository.
+2. Copy this repository contents into it.
+3. Commit and push the `skills/my-beast-mode/SKILL.md` tree.
+4. Confirm the repository is reachable without authentication.
+5. Test installation:
+
+   ```bash
+   npx skills add OWNER/REPOSITORY --skill my-beast-mode
+   ```
+
+6. Open the resulting skills.sh page after the first indexed installation and review its security audit.
+7. Add an optional install-count badge to this README:
+
+   ```markdown
+   [![skills.sh](https://skills.sh/b/OWNER/REPOSITORY)](https://skills.sh/OWNER/REPOSITORY)
+   ```
+
+For an unlisted multi-skill bundle, create a skills.sh pack and add this GitHub skill. Packs use an install URL such as `https://skills.sh/p/PACK_ID`.
+
+## Skill descriptions
+
+Short catalog description:
+
+> Minimal, graph-aware code review with terse findings and optional local or remote orchestration.
+
+Full catalog description:
+
+> Review, debug, and change code with Caveman brevity, Ponytail minimalism, code-review-graph blast-radius analysis, and Graphify semantic mapping. Uses optional advisory orchestration through local Ollama with Gemma 4, a remote OpenAI-compatible endpoint, or the current host agent. Core behavior remains portable across Agent Skills clients and works without external graph tools.
+
+Suggested repository description:
+
+> Portable Agent Skill combining concise reviews, minimal fixes, structural and semantic graphs, and optional local-first orchestration.
+
+Suggested topics:
+
+```text
+agent-skills code-review knowledge-graph ollama gemma4 skills-sh codex claude-code cursor copilot
+```
+
+## Troubleshooting
+
+### Skill is not discovered
+
+- Confirm the file name is exactly `SKILL.md`.
+- Confirm the parent directory and frontmatter name are both `my-beast-mode`.
+- Validate YAML frontmatter.
+- Reinstall or reload the agent.
+- Use the skills CLI with an explicit `--skill my-beast-mode` selector.
+
+### Ollama cannot be reached
+
+```bash
+ollama serve
+python scripts/orchestrator.py status --check
+```
+
+Confirm the configured base URL ends in `/v1`. If local orchestration remains unavailable, select host mode; review behavior remains functional.
+
+### Remote API returns an authentication error
+
+Check that the configured `api_key_env` names an environment variable available to the agent process:
+
+```bash
+python scripts/orchestrator.py status
+```
+
+Do not paste the secret into the JSON config.
+
+### Orchestrator returns invalid JSON
+
+The helper accepts a plain JSON object or one surrounded by short model text. If parsing still fails, use host mode or choose a remote model with reliable JSON output.
+
+### code-review-graph is stale
+
+Run an incremental update before rebuilding:
+
+```bash
+code-review-graph update --brief
+```
+
+Rebuild only after a missing/corrupt graph, major branch shift, or tool recommendation.
+
+### Graphify is expensive for a simple review
+
+Skip it. Use the diff, code-review-graph, repository search, and focused tests. Graphify earns its cost only when semantic relationships across sources matter.
+
+## License
+
+MIT. External tools and named projects retain their own licenses and are not bundled here.
+
+## References and acknowledgements
+
+- [Agent Skills specification](https://agentskills.io/specification)
+- [skills.sh documentation](https://skills.sh/docs)
+- [code-review-graph](https://github.com/tirth8205/code-review-graph)
+- [Graphify](https://github.com/safishamsi/graphify)
+- [Ollama Gemma 4 model library](https://ollama.com/library/gemma4)
+
+This repository provides an original composite workflow. It does not vendor code-review-graph, Graphify, Ollama, Gemma 4, or their model weights.
