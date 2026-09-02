@@ -2,6 +2,8 @@
 
 [![skills.sh](https://skills.sh/b/sheelarajeshkumar/my-beast-mode)](https://skills.sh/sheelarajeshkumar/my-beast-mode)
 
+Catalog: [my-beast-mode on skills.sh](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode)
+
 `my-beast-mode` is a portable Agent Skill for small, evidence-backed code changes and reviews. It combines:
 
 - Caveman-style concise communication
@@ -426,7 +428,7 @@ To publish or refresh its catalog entry:
    npx skills add sheelarajeshkumar/my-beast-mode --skill my-beast-mode
    ```
 
-3. Verify the [skills.sh source page](https://skills.sh/sheelarajeshkumar/my-beast-mode) and its generated security audit.
+3. Verify the [my-beast-mode catalog page](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode) and its generated security audit.
 4. After future pushes, users can retrieve the current skill with:
 
    ```bash
