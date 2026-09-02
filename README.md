@@ -4,6 +4,10 @@
 
 Catalog: [my-beast-mode on skills.sh](https://skills.sh/sheelarajeshkumar/my-beast-mode/my-beast-mode)
 
+![My Beast Mode dashboard showing RTK savings and local memory metrics](docs/dashboard-preview.png)
+
+_30-day dashboard preview. Project paths and detailed memory summaries are intentionally excluded from the public screenshot._
+
 This repository contains two portable Agent Skills:
 
 - `my-beast-mode` for small, evidence-backed code changes and reviews
